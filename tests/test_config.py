@@ -68,7 +68,9 @@ class ConfigurationTests(unittest.TestCase):
                 patch.dict(os.environ, {}, clear=True),
                 patch.object(sys, "executable", str(executable)),
             ):
-                self.assertEqual(tls_ca_file("https://localhost"), str(ca_file))
+                found_ca = tls_ca_file("https://localhost")
+                self.assertIsNotNone(found_ca)
+                self.assertTrue(Path(found_ca).samefile(ca_file))
 
 
 if __name__ == "__main__":
