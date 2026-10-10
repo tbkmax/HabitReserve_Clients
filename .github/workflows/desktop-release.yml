@@ -1,0 +1,69 @@
+name: Windows desktop release candidate
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  portable-release:
+    name: Build portable Windows release
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate tag and package version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw "Release tags must use vMAJOR.MINOR.PATCH."
+          }
+          if ($env:GITHUB_REPOSITORY -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
+            throw "The release must run in the public desktop repository."
+          }
+          "RELEASE_VERSION=$($env:GITHUB_REF_NAME.Substring(1))" >> $env:GITHUB_ENV
+
+      - name: Build and test
+        shell: pwsh
+        env:
+          RELEASE_SERVER_URL: ${{ vars.HABITRESERVE_RELEASE_SERVER_URL }}
+        run: |
+          if (-not $env:RELEASE_SERVER_URL) { throw "Set HABITRESERVE_RELEASE_SERVER_URL as a repository variable." }
+          .\build.ps1 -Release -ServerUrl $env:RELEASE_SERVER_URL -Version $env:RELEASE_VERSION -ReleaseRepository $env:GITHUB_REPOSITORY
+
+      - name: Retain release candidate for clean-machine testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: habitreserve-desktop-${{ github.ref_name }}
+          path: |
+            release/HabitReserve-${{ env.RELEASE_VERSION }}.exe
+            release/HabitReserve-${{ env.RELEASE_VERSION }}.zip
+          if-no-files-found: error
+
+      - name: Create draft GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:RELEASE_VERSION
+          gh release create $env:GITHUB_REF_NAME `
+            "release/HabitReserve-$version.exe" `
+            "release/HabitReserve-$version.zip" `
+            --draft --generate-notes --verify-tag
+          if ($LASTEXITCODE -ne 0) { throw "Creating the draft release failed." }
