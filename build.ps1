@@ -40,7 +40,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($Release -and [string]::IsNullOrWhiteSpace($ServerUrl)) {
-    throw "A release build requires -ServerUrl https://your-production-domain."
+    throw "A release build requires -ServerUrl https://your-server-origin."
 }
 if ($ReleaseRepository -and $ReleaseRepository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
     throw "ReleaseRepository must use the public desktop repository's owner/name."
@@ -76,9 +76,6 @@ if (-not [Uri]::TryCreate($ServerUrl, [UriKind]::Absolute, [ref]$ParsedServerUrl
     throw "ServerUrl must be an HTTPS origin only, for example https://time.example.com."
 }
 $ServerUrl = $ParsedServerUrl.GetLeftPart([UriPartial]::Authority)
-if ($Release -and $ParsedServerUrl.Host -in @("localhost", "127.0.0.1", "::1")) {
-    throw "A release build cannot use a localhost server URL."
-}
 
 $BuildConfigDirectory = Join-Path ([IO.Path]::GetTempPath()) ("habitreserve-build-" + [Guid]::NewGuid().ToString("N"))
 $BuildConfigPath = Join-Path $BuildConfigDirectory "_habitreserve_build.json"
